@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JoshuaTREE Broker Wiki</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.22.9/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: auto; }
+        th, td { border: 1px solid #d1d5db; padding: 12px; text-align: left; }
+        th { background-color: #f3f4f6; font-weight: 600; color: #374151; }
+        td { background-color: #ffffff; }
+        .break-words { word-break: break-word; }
+        .container { background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); padding: 24px; }
+        .dark .container { background-color: #1f2937; color: #f3f4f6; }
+        .dark th { background-color: #374151; color: #f3f4f6; }
+        .dark td { background-color: #1f2937; color: #f3f4f6; }
+    </style>
+</head>
+<body className="bg-gray-100 font-sans">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // Collapsible Section Component
+        function CollapsibleSection({ title, children }) {
+            const [isOpen, setIsOpen] = React.useState(false);
+            return (
+                <div className="mb-4">
+                    <button onClick={() => setIsOpen(!isOpen)} className="w-full text-left p-4 bg-white rounded-lg shadow-md flex justify-between items-center text-lg font-semibold text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                        {title}
+                        <svg className={`w-6 h-6 transform transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                        </svg>
+                    </button>
+                    {isOpen && <div className="mt-2 p-4 bg-gray-50 rounded-lg shadow-inner dark:bg-gray-700">{children}</div>}
+                </div>
+            );
+        }
+
+        // Notes Modal Component
+        function NotesModal({ lender, onSave, onCancel }) {
+            const [notes, setNotes] = React.useState(lender.notes || []);
+            const [newNote, setNewNote] = React.useState('');
+            const [editingIndex, setEditingIndex] = React.useState(null);
+
+            const handleAddOrUpdateNote = () => {
+                if (newNote.trim()) {
+                    const timestamp = new Date().toLocaleString();
+                    if (editingIndex !== null) {
+                        const updatedNotes = [...notes];
+                        updatedNotes[editingIndex] = { text: newNote, timestamp: notes[editingIndex].timestamp };
+                        setNotes(updatedNotes);
+                        setEditingIndex(null);
+                    } else {
+                        setNotes([...notes, { text: newNote, timestamp }]);
+                    }
+                    setNewNote('');
+                }
+            };
+
+            const handleEditNote = (index) => {
+                setNewNote(notes[index].text);
+                setEditingIndex(index);
+            };
+
+            const handleDeleteNote = (index) => {
+                setNotes(notes.filter((_, i) => i !== index));
+            };
+
+            const handleSave = () => {
+                onSave(notes);
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md dark:bg-gray-800">
+                        <h3 className="text-lg font-semibold text-indigo-700 mb-4 dark:text-indigo-300">Notes for {lender.name}</h3>
+                        {notes.length === 0 ? (
+                            <p className="text-gray-600 dark:text-gray-300">No notes available.</p>
+                        ) : (
+                            notes.map((note, index) => (
+                                <div key={index} className="p-2 bg-gray-100 rounded-lg mb-2 dark:bg-gray-700">
+                                    <p className="text-gray-700 dark:text-gray-200">{note.text}</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">{note.timestamp}</p>
+                                    <div className="flex space-x-2 mt-2">
+                                        <button onClick={() => handleEditNote(index)} className="text-blue-500 hover:underline">Edit</button>
+                                        <button onClick={() => handleDeleteNote(index)} className="text-red-500 hover:underline">Delete</button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                        <textarea
+                            value={newNote}
+                            onChange={(e) => setNewNote(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-lg mt-4 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"
+                            rows="4"
+                            placeholder={editingIndex !== null ? "Edit note..." : "Add a new note..."}
+                        ></textarea>
+                        <button onClick={handleAddOrUpdateNote} className="mt-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 dark:bg-indigo-500">
+                            {editingIndex !== null ? "Update Note" : "Add Note"}
+                        </button>
+                        <div className="flex justify-end space-x-2 mt-4">
+                            <button onClick={onCancel} className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 dark:bg-gray-600 dark:text-gray-200">Cancel</button>
+                            <button onClick={handleSave} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 dark:bg-indigo-500">Save</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Lender Edit Modal Component
+        function LenderEditModal({ lender, onSave, onCancel, category }) {
+            const [formData, setFormData] = React.useState(lender || { name: '', score: '', seesRHI: 'No', eot: '', acceptableVisas: '' });
+
+            const handleChange = (e) => {
+                const { name, value } = e.target;
+                setFormData(prev => ({ ...prev, [name]: value }));
+            };
+
+            const handleSaveClick = () => {
+                if (!formData.name.trim()) { alert('Lender name is required.'); return; }
+                onSave(formData);
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md dark:bg-gray-800">
+                        <h3 className="text-lg font-semibold text-indigo-700 mb-4 dark:text-indigo-300">{lender ? 'Edit Lender' : 'Add Lender'}</h3>
+                        <div className="space-y-4">
+                            <input name="name" value={formData.name} onChange={handleChange} placeholder="Lender Name" className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200" />
+                            <input name="score" value={formData.score} onChange={handleChange} placeholder="Score" className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200" />
+                            <select name="seesRHI" value={formData.seesRHI} onChange={handleChange} className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200">
+                                <option>No</option><option>Yes</option>
+                            </select>
+                            <input name="eot" value={formData.eot} onChange={handleChange} placeholder="EOT" className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200" />
+                            <input name="acceptableVisas" value={formData.acceptableVisas} onChange={handleChange} placeholder="Acceptable Visas" className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200" />
+                        </div>
+                        <div className="flex justify-end space-x-2 mt-4">
+                            <button onClick={onCancel} className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 dark:bg-gray-600 dark:text-gray-200">Cancel</button>
+                            <button onClick={handleSaveClick} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 dark:bg-indigo-500">Save</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // YTD Calculator Component
+        function YTDCalculator() {
+            const [startDate, setStartDate] = React.useState('2024-07-01');
+            const [payDate, setPayDate] = React.useState(new Date().toISOString().split('T')[0]);
+            const [incomeAmount, setIncomeAmount] = React.useState('');
+            const [payFrequency, setPayFrequency] = React.useState('Fortnightly');
+            const [preTaxDeductions, setPreTaxDeductions] = React.useState('0');
+            const [postTaxDeductions, setPostTaxDeductions] = React.useState('0');
+            const [result, setResult] = React.useState(null);
+
+            const taxBrackets = [
+                { threshold: 18200, rate: 0 },
+                { threshold: 45000, rate: 0.19 },
+                { threshold: 120000, rate: 0.325 },
+                { threshold: 180000, rate: 0.37 },
+                { threshold: Infinity, rate: 0.45 }
+            ];
+
+            const calculateTax = (income) => {
+                let tax = 0;
+                let previousThreshold = 0;
+                for (const bracket of taxBrackets) {
+                    if (income > bracket.threshold) {
+                        tax += (bracket.threshold - previousThreshold) * bracket.rate;
+                        previousThreshold = bracket.threshold;
+                    } else {
+                        tax += (income - previousThreshold) * bracket.rate;
+                        break;
+                    }
+                }
+                return tax;
+            };
+
+            const calculateYTD = () => {
+                const start = new Date(startDate);
+                const end = new Date(payDate);
+                if (start > end) { alert('Start date must be before pay date.'); return; }
+                const diffDays = Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                const periodsPerYear = { 'Weekly': 52, 'Fortnightly': 26, 'Monthly': 12 }[payFrequency];
+                const daysPerPeriod = 365 / periodsPerYear;
+                const numPeriods = Math.floor(diffDays / daysPerPeriod);
+                const income = parseFloat(incomeAmount) || 0;
+                if (income <= 0) { alert('Income amount must be greater than zero.'); return; }
+                const preTax = parseFloat(preTaxDeductions) || 0;
+                const postTax = parseFloat(postTaxDeductions) || 0;
+                const payPerPeriod = income / numPeriods;
+                const annualizedIncome = payPerPeriod * periodsPerYear - preTax;
+                const estimatedTax = calculateTax(annualizedIncome);
+                const netAnnualized = annualizedIncome - estimatedTax - postTax;
+
+                setResult({
+                    numPeriods,
+                    payPerPeriod: payPerPeriod.toFixed(2),
+                    annualizedIncome: annualizedIncome.toFixed(2),
+                    estimatedTax: estimatedTax.toFixed(2),
+                    netAnnualized: netAnnualized.toFixed(2),
+                    monthlyNet: (netAnnualized / 12).toFixed(2)
+                });
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><label className="block text-gray-700 mb-2 font-medium dark:text-gray-200">Pay Frequency</label><select value={payFrequency} onChange={(e) => setPayFrequency(e.target.value)} className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200"><option>Weekly</option><option>Fortnightly</option><option>Monthly</option></select></div>
+                        <div><label className="block text-gray-700 mb-2 font-medium dark:text-gray-200">Start Date</label><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200" /></div>
+                        <div><label className="block text-gray-700 mb-2 font-medium dark:text-gray-200">Pay Date</label><input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200" /></div>
+                        <div><label className="block text-gray-700 mb-2 font-medium dark:text-gray-200">YTD Gross Income ($)</label><input type="number" value={incomeAmount} onChange={(e) => setIncomeAmount(e.target.value)} className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200" step="0.01" /></div>
+                        <div><label className="block text-gray-700 mb-2 font-medium dark:text-gray-200">Pre-Tax Deductions ($)</label><input type="number" value={preTaxDeductions} onChange={(e) => setPreTaxDeductions(e.target.value)} className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200" step="0.01" /></div>
+                        <div><label className="block text-gray-700 mb-2 font-medium dark:text-gray-200">Post-Tax Deductions ($)</label><input type="number" value={postTaxDeductions} onChange={(e) => setPostTaxDeductions(e.target.value)} className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200" step="0.01" /></div>
+                    </div>
+                    <button onClick={calculateYTD} className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 dark:bg-indigo-500">Calculate YTD</button>
+                    {result && (
+                        <div className="mt-4 p-4 bg-gray-100 rounded-lg dark:bg-gray-700">
+                            <p className="text-gray-700 dark:text-gray-200"><strong>Number of Pay Periods:</strong> {result.numPeriods}</p>
+                            <p className="text-gray-700 dark:text-gray-200"><strong>Pay Per Period:</strong> ${result.payPerPeriod}</p>
+                            <p className="text-gray-700 dark:text-gray-200"><strong>Annualized Income (Pre-Tax):</strong> ${result.annualizedIncome}</p>
+                            <p className="text-gray-700 dark:text-gray-200"><strong>Estimated Tax (2024-2025):</strong> ${result.estimatedTax}</p>
+                            <p className="text-gray-700 dark:text-gray-200"><strong>Net Annualized Income:</strong> ${result.netAnnualized}</p>
+                            <p className="text-gray-700 dark:text-gray-200"><strong>Monthly Net Income:</strong> ${result.monthlyNet}</p>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Note: Tax based on Australian 2024-2025 rates (estimate only).</p>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Main App Component
+        function App() {
+            const [searchTerm, setSearchTerm] = React.useState('');
+            const [currentCategory, setCurrentCategory] = React.useState('consumer');
+            const [lenderData, setLenderData] = React.useState(() => {
+                const saved = localStorage.getItem('lenderData');
+                return saved ? JSON.parse(saved) : {
+                    consumer: [
+                        { name: "ACL", score: "", seesRHI: "No", eot: "", acceptableVisas: "", notes: [] },
+                        { name: "Affordable Car Loans", score: "Negative Score", seesRHI: "Yes", eot: "", acceptableVisas: "", notes: [] }
+                    ],
+                    commercial: [
+                        { name: "Commercial Lender A", score: "", seesRHI: "No", eot: "", acceptableVisas: "", notes: [] },
+                        { name: "Commercial Lender B", score: "", seesRHI: "Yes", eot: "", acceptableVisas: "", notes: [] }
+                    ]
+                };
+            });
+            const [editingLender, setEditingLender] = React.useState(null);
+            const [isAddingLender, setIsAddingLender] = React.useState(false);
+            const [showNotesModal, setShowNotesModal] = React.useState(false);
+            const [selectedLender, setSelectedLender] = React.useState(null);
+            const [darkMode, setDarkMode] = React.useState(() => localStorage.getItem('darkMode') === 'true');
+
+            React.useEffect(() => {
+                localStorage.setItem('lenderData', JSON.stringify(lenderData));
+            }, [lenderData]);
+
+            React.useEffect(() => {
+                localStorage.setItem('darkMode', darkMode);
+                document.body.className = `bg-gray-100 font-sans ${darkMode ? 'dark' : ''}`;
+            }, [darkMode]);
+
+            const handleEditLender = (lender) => setEditingLender(lender);
+            const handleSaveLender = (updatedLender) => {
+                const category = currentCategory;
+                if (editingLender) {
+                    setLenderData(prev => ({
+                        ...prev,
+                        [category]: prev[category].map(l => l.name === editingLender.name ? { ...l, ...updatedLender } : l)
+                    }));
+                    setEditingLender(null);
+                } else {
+                    if (lenderData[category].find(l => l.name === updatedLender.name)) { alert('Lender already exists.'); return; }
+                    setLenderData(prev => ({
+                        ...prev,
+                        [category]: [...prev[category], { ...updatedLender, notes: [] }].sort((a, b) => a.name.localeCompare(b.name))
+                    }));
+                    setIsAddingLender(false);
+                }
+            };
+            const handleDeleteLender = (lender) => {
+                if (window.confirm(`Delete ${lender.name}?`)) {
+                    setLenderData(prev => ({
+                        ...prev,
+                        [currentCategory]: prev[currentCategory].filter(l => l.name !== lender.name)
+                    }));
+                }
+            };
+            const handleViewNotes = (lender) => {
+                setSelectedLender(lender);
+                setShowNotesModal(true);
+            };
+            const handleSaveNotes = (updatedNotes) => {
+                setLenderData(prev => ({
+                    ...prev,
+                    [currentCategory]: prev[currentCategory].map(l => l.name === selectedLender.name ? { ...l, notes: updatedNotes } : l)
+                }));
+                setShowNotesModal(false);
+                setSelectedLender(null);
+            };
+
+            const filteredLenders = lenderData[currentCategory].filter(l =>
+                Object.values(l).some(val => 
+                    Array.isArray(val) ? val.some(n => n.text.toLowerCase().includes(searchTerm.toLowerCase())) : 
+                    val.toString().toLowerCase().includes(searchTerm.toLowerCase())
+                )
+            );
+
+            const exportToCSV = () => {
+                const headers = ['Name', 'Score', 'Sees RHI', 'EOT', 'Acceptable Visas', 'Notes'];
+                const csvRows = [headers.join(',')];
+                lenderData[currentCategory].forEach(l => {
+                    const notesText = l.notes.map(n => n.text).join('; ');
+                    const row = [l.name, l.score || 'N/A', l.seesRHI, l.eot || 'N/A', l.acceptableVisas || 'N/A', notesText || 'N/A']
+                        .map(v => `"${v.replace(/"/g, '""')}"`).join(',');
+                    csvRows.push(row);
+                });
+                const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${currentCategory}_lenders.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+            };
+
+            return (
+                <div className={`max-w-7xl mx-auto p-8 ${darkMode ? 'dark' : ''}`}>
+                    <div className="container">
+                        <h1 className="text-4xl font-bold text-indigo-700 mb-8 text-center dark:text-indigo-300">JoshuaTREE Broker Wiki</h1>
+                        <div className="flex justify-between items-center mb-8">
+                            <div className="flex space-x-4">
+                                <button onClick={() => setCurrentCategory('consumer')} className={`px-4 py-2 rounded-lg ${currentCategory === 'consumer' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'} hover:bg-indigo-700 hover:text-white dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-indigo-600`}>Consumer Lenders</button>
+                                <button onClick={() => setCurrentCategory('commercial')} className={`px-4 py-2 rounded-lg ${currentCategory === 'commercial' ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-700'} hover:bg-indigo-700 hover:text-white dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-indigo-600`}>Commercial Lenders</button>
+                            </div>
+                            <button onClick={() => setDarkMode(!darkMode)} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200">Toggle {darkMode ? 'Light' : 'Dark'} Mode</button>
+                        </div>
+                        <input type="text" placeholder="Search lenders..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full p-4 border rounded-lg mb-8 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200" />
+
+                        <section className="mb-12">
+                            <h2 className="text-2xl font-semibold text-indigo-600 mb-6 dark:text-indigo-300">{currentCategory.charAt(0).toUpperCase() + currentCategory.slice(1)} Lenders</h2>
+                            <CollapsibleSection title="Lender Table">
+                                <div className="mb-4 flex justify-between">
+                                    <button onClick={() => setIsAddingLender(true)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 dark:bg-indigo-500">Add Lender</button>
+                                    <button onClick={exportToCSV} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 dark:bg-green-500">Export to CSV</button>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Score</th>
+                                                <th>Sees RHI</th>
+                                                <th>EOT</th>
+                                                <th>Acceptable Visas</th>
+                                                <th>Notes</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredLenders.map((lender, index) => (
+                                                <tr key={index} className="hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                    <td>{lender.name}</td>
+                                                    <td>{lender.score || 'N/A'}</td>
+                                                    <td>{lender.seesRHI}</td>
+                                                    <td>{lender.eot || 'N/A'}</td>
+                                                    <td className="break-words">{lender.acceptableVisas || 'N/A'}</td>
+                                                    <td>{lender.notes.length > 0 ? lender.notes[0].text.substring(0, 50) + (lender.notes[0].text.length > 50 ? '...' : '') : 'No notes'}</td>
+                                                    <td>
+                                                        <button onClick={() => handleEditLender(lender)} className="mr-2 px-2 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 dark:bg-indigo-500">Edit</button>
+                                                        <button onClick={() => handleDeleteLender(lender)} className="mr-2 px-2 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 dark:bg-red-500">Delete</button>
+                                                        <button onClick={() => handleViewNotes(lender)} className="px-2 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 dark:bg-blue-400">View/Edit Notes</button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </CollapsibleSection>
+                        </section>
+
+                        {(editingLender || isAddingLender) && <LenderEditModal lender={editingLender} onSave={handleSaveLender} onCancel={() => { setEditingLender(null); setIsAddingLender(false); }} category={currentCategory} />}
+                        {showNotesModal && <NotesModal lender={selectedLender} onSave={handleSaveNotes} onCancel={() => setShowNotesModal(false)} />}
+
+                        <section className="mb-12">
+                            <h2 className="text-2xl font-semibold text-indigo-600 mb-6 dark:text-indigo-300">YTD Income Calculator</h2>
+                            <CollapsibleSection title="YTD Calculator">
+                                <YTDCalculator />
+                            </CollapsibleSection>
+                        </section>
+
+                        <footer className="text-center text-gray-500 text-sm mt-12 dark:text-gray-400">
+                            <p>© {new Date().getFullYear()} JoshuaTREE Broker Wiki</p>
+                        </footer>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
